@@ -11,7 +11,7 @@ bot.onText(/\/start/, (msg) => {
   const firstName = msg.from.first_name;
   
   // Welcome message
-  bot.sendMessage(chatId, `Hello ${firstName}! Welcome to my Telegram bot. How can I assist you today?`);
+  bot.sendMessage(chatId, `Hello ${firstName} 🖐🏿 Welcome to my Telegram bot. How can I assist you today?`);
 });
 
 // Listen for any kind of message after the /start command
