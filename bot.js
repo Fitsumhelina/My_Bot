@@ -5,6 +5,7 @@ const express = require('express');
 // Replace YOUR_API_TOKEN with the actual token from BotFather or use .env file for security.
 const token = process.env.TELEGRAM_BOT_TOKEN;
 const url = process.env.SERVER_URL; // This will be set in Railway environment variables
+bot.setWebHook(`${url}/bot${token}`);
 
 const bot = new TelegramBot(token);
 const app = express();
