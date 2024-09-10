@@ -1,19 +1,9 @@
 require('dotenv').config();
-const express = require('express');
-const bodyParser = require('body-parser');
 const TelegramBot = require('node-telegram-bot-api');
 
-// Initialize Express app
-const app = express();
-app.use(bodyParser.json());
-
-// Replace YOUR_API_TOKEN with the actual token from BotFather or use .env file for security.
-const token = process.env.TELEGRAM_BOT_TOKEN || 'YOUR_API_TOKEN';
-const bot = new TelegramBot(token);
-
-// Set webhook URL
-const url = process.env.SERVER_URL || 'https://your-deployed-url';
-bot.setWebHook(`${url}/bot${token}`);
+// Replace with your actual bot token
+const token = process.env.TELEGRAM_BOT_TOKEN || '7041187201:AAFi2fG36ToOc0AUIw1JGVX73xaf2k0yAOM';
+const bot = new TelegramBot(token, { polling: true });
 
 // Send a welcome message when the bot is started (/start command)
 bot.onText(/\/start/, (msg) => {
@@ -24,29 +14,51 @@ bot.onText(/\/start/, (msg) => {
   bot.sendMessage(chatId, `Hello ${firstName} 🖐🏿 Welcome to my Telegram bot. How can I assist you today?`);
 });
 
-// Listen for any kind of message after the /start command
+// Listen for any kind of message
 bot.on('message', (msg) => {
   const chatId = msg.chat.id;
   const messageText = msg.text;
-
-  // Make sure to not reply with the message if it's the /start command
+  
+  // Ignore the /start command to prevent duplication
   if (messageText === '/start') return;
 
-  // Log the received message
-  console.log(`Received message from ${chatId}: ${messageText}`);
+  // Log the received message for reference
+  console.log(`Received message from ${msg.from.first_name} (${chatId}): ${messageText}`);
 
-  // Reply to the user with the custom message
-  bot.sendMessage(chatId, 'Thank you for your message! I will be in touch with you soon.');
+  // Reply with an inline button that allows you to respond to the message
+  bot.sendMessage(chatId, 'Thank you for your message! I will be in touch soon. If you would like a response now, click below.', {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          {
+            text: 'Reply',
+            callback_data: `reply_${chatId}` // Store the chatId in the callback
+          }
+        ]
+      ]
+    }
+  });
 });
 
-// Handle Telegram webhook requests
-app.post(`/bot${token}`, (req, res) => {
-  bot.processUpdate(req.body);
-  res.sendStatus(200);
-});
+// Handle inline button callback
+bot.on('callback_query', (callbackQuery) => {
+  const chatId = callbackQuery.message.chat.id;
+  const messageId = callbackQuery.message.message_id;
 
-// Start Express server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  // Extract the chat ID from the callback data
+  const targetChatId = callbackQuery.data.split('_')[1];
+  
+  // Reply prompt
+  bot.sendMessage(chatId, 'Please type your reply:');
+
+  // Set up a one-time listener for the next message
+  bot.once('message', (replyMsg) => {
+    const replyText = replyMsg.text;
+    
+    // Send the reply to the user who originally sent the message
+    bot.sendMessage(targetChatId, `Reply from admin: ${replyText}`);
+    
+    // Acknowledge that the reply was sent
+    bot.sendMessage(chatId, 'Your reply has been sent.');
+  });
 });
