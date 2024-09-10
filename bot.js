@@ -67,7 +67,7 @@ bot.on('message', (msg) => {
 
 // Handle the admin's reply to a specific user
 bot.on('callback_query', (callbackQuery) => {
-  const chatId = callbackQuery.message.chat.id;
+  const chatId = adminChatId;
 
   // Only allow the admin to reply
   if (chatId !== adminChatId) {
