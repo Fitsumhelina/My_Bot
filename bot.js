@@ -73,7 +73,10 @@ bot.on('callback_query', (callbackQuery) => {
   const messageId = callbackQuery.message.message_id;
 
   // Only allow the admin to reply
-  if (chatId !== adminChatId) return;
+  // if (chatId !== adminChatId) {
+  //   bot.sendMessage(chatId, 'You are not authorized to use this function.');
+  //   return;
+  // }
 
   // Extract the user chat ID from the callback data
   const targetChatId = callbackQuery.data.split('_')[1];
