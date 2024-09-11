@@ -41,15 +41,16 @@ bot.on('message', (msg) => {
   // Ignore the /start command
   if (messageText === '/start') return;
 
-  // Thank-you message for the user
+  // Send thank-you message to users, but not to admin
   if (chatId !== adminChatId) {
     bot.sendMessage(chatId, 'Thank you for your message! I will be in touch with you soon.');
   }
-  // Show the message details to the admin (you)
+
+  // Show the message details to the admin
   if (chatId !== adminChatId) {
-    const userFullName = `${msg.from.first_name} ${msg.from.last_name }`;
+    const userFullName = `${msg.from.first_name} ${msg.from.last_name || ''}`;
     const messageDetails = `Message from ${userFullName} (@${username}): "${messageText}"`;
-    
+
     // Send the message details to the admin along with the reply button
     bot.sendMessage(adminChatId, messageDetails, {
       reply_markup: {
@@ -71,7 +72,7 @@ bot.on('callback_query', (callbackQuery) => {
   const chatId = callbackQuery.message.chat.id;
   const messageId = callbackQuery.message.message_id;
 
-  // Only allow the admin to reply
+  // Ensure only the admin can use this function
   // if (chatId !== adminChatId) {
   //   bot.sendMessage(chatId, 'You are not authorized to use this function.');
   //   return;
