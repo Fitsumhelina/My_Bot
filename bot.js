@@ -27,9 +27,11 @@ app.post(`/bot${token}`, (req, res) => {
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
   const firstName = msg.from.first_name || 'there';
-
+if(chatId !== adminChatId) {
   bot.sendMessage(chatId, `Hello ${firstName} 🖐🏿! Welcome to my Telegram bot. How can I assist you today?`);
-});
+} else {
+  bot.sendMessage(chatId, `Hello Boss`)
+}});
 
 // Handle incoming messages from users
 bot.on('message', (msg) => {
@@ -43,7 +45,11 @@ bot.on('message', (msg) => {
 
   // Send thank you message to the user
   if (chatId !== adminChatId) {
-    bot.sendMessage(chatId, 'Thank you for your message! I will be in touch with you soon.');
+    bot.sendMessage(chatId, 'Thank you for your message! I will be in touch with you soon.')
+
+  }
+  else {
+    bot.sendMessage(chatId, `Hello Boss Select reply first`)
   }
 
   // Show the message details to the admin (you) and add a reply button
@@ -64,6 +70,9 @@ bot.on('message', (msg) => {
         ]
       }
     });
+  }
+  else{
+    bot.sendMessage(chatId, `Hello Boss Select reply first`)
   }
 });
 
