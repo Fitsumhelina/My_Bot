@@ -46,7 +46,7 @@ bot.on('message', (msg) => {
     bot.sendMessage(chatId, 'Thank you for your message! I will be in touch with you soon.');
   }
   // Show the message details to the admin (you)
-  if (chatId === adminChatId) {
+  if (chatId !== adminChatId) {
     const userFullName = `${msg.from.first_name} ${msg.from.last_name }`;
     const messageDetails = `Message from ${userFullName} (@${username}): "${messageText}"`;
     
