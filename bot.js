@@ -42,10 +42,11 @@ bot.on('message', (msg) => {
   if (messageText === '/start') return;
 
   // Thank-you message for the user
-  bot.sendMessage(chatId, 'Thank you for your message! I will be in touch with you soon.');
-
-  // Show the message details to the admin (you)
   if (chatId !== adminChatId) {
+    bot.sendMessage(chatId, 'Thank you for your message! I will be in touch with you soon.');
+  }
+  // Show the message details to the admin (you)
+  if (chatId === adminChatId) {
     const userFullName = `${msg.from.first_name} ${msg.from.last_name }`;
     const messageDetails = `Message from ${userFullName} (@${username}): "${messageText}"`;
     
@@ -68,6 +69,7 @@ bot.on('message', (msg) => {
 // Handle the admin's reply to a specific user
 bot.on('callback_query', (callbackQuery) => {
   const chatId = callbackQuery.message.chat.id;
+  const messageId = callbackQuery.message.message_id;
 
   // Only allow the admin to reply
   // if (chatId !== adminChatId) {
@@ -90,6 +92,12 @@ bot.on('callback_query', (callbackQuery) => {
 
     // Confirm to the admin that the reply has been sent
     bot.sendMessage(adminChatId, 'Your reply has been sent.');
+  });
+
+  // Remove the inline keyboard after it's used
+  bot.editMessageReplyMarkup({}, {
+    chat_id: adminChatId,
+    message_id: messageId
   });
 });
 
