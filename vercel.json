@@ -1,14 +1,16 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "api/bot.js",
-      "use": "@vercel/node"
-    }
-  ],
-  "env": {
-    "TELEGRAM_BOT_TOKEN": "7041187201:AAFi2fG36ToOc0AUIw1JGVX73xaf2k0yAOM", 
-    "ADMIN_TELEGRAM_USER_ID": "937438167",
-    "VERCEL_URL": "https://my-bot-flame.vercel.app/"
+    "version": 2,
+    "builds": [
+      {
+        "src": "bot.js",
+        "use": "@vercel/node"
+      }
+    ],
+    "routes": [
+      {
+        "src": "/bot(.*)",
+        "dest": "/bot.js"
+      }
+    ]
   }
-}
+  
