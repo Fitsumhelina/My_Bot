@@ -14,6 +14,10 @@ const bot = new TelegramBot(token);
 const port = process.env.PORT || 3000;
 const webhookUrl = process.env.WEBHOOK_URL; // Replace with your deployed Railway URL
 
+// In-memory storage for blocked users and chat history
+const blockedUsers = new Set();
+const chatHistory = {};
+
 // Set the webhook to receive updates
 bot.setWebHook(`${webhookUrl}/bot${token}`);
 
@@ -22,6 +26,17 @@ app.post(`/bot${token}`, (req, res) => {
   bot.processUpdate(req.body);
   res.sendStatus(200);
 });
+
+// Function to store chat history
+const storeChatHistory = (chatId, message) => {
+  if (!chatHistory[chatId]) {
+    chatHistory[chatId] = [];
+  }
+  chatHistory[chatId].push(message);
+  if (chatHistory[chatId].length > 5) {
+    chatHistory[chatId].shift(); // Keep only the recent 5 messages
+  }
+};
 
 // Show a welcome message when a user starts the bot
 bot.onText(/\/start/, (msg) => {
@@ -44,27 +59,44 @@ bot.on('message', (msg) => {
   // Ignore the /start command
   if (messageText === '/start') return;
 
+  // Check if the user is blocked
+  if (blockedUsers.has(chatId)) {
+    bot.sendMessage(chatId, 'You are blocked and cannot send messages.');
+    return;
+  }
+
+  // Store the chat history
+  storeChatHistory(chatId, messageText);
+
   // Send thank you message to the user
   if (chatId !== adminChatId) {
     bot.sendMessage(chatId, 'Thank you for your message! I will be in touch with you soon.');
-  } else {
-    bot.sendMessage(chatId, `Hello Boss, please select reply first.`);
-  }
 
-  // Show the message details to the admin (you) and add a reply button
-  if (chatId !== adminChatId) {
+    // Prepare message details for the admin
     const userFullName = `${msg.from.first_name} ${msg.from.last_name}`;
-    const messageDetails = `Message from ${userFullName} (@${username}): "${messageText}"`;
+    const recentChatHistory = chatHistory[chatId].join('\n');
+    const messageDetails = `Full name: ${userFullName}\nUsername: @${username}\nRecent chat history:\n${recentChatHistory}`;
 
-    // Send the message details to the admin along with the reply button
+    // Send the message details to the admin along with reply and block buttons
     bot.sendMessage(adminChatId, messageDetails, {
       reply_markup: {
         inline_keyboard: [
           [
-            {
-              text: 'Reply',
-              callback_data: `reply_${chatId}`
-            }
+            { text: 'Reply', callback_data: `reply_${chatId}` },
+            { text: 'Block', callback_data: `block_${chatId}` }
+          ]
+        ]
+      }
+    });
+  } else {
+    // Show admin's message as a user message (with Reply and Block options)
+    const adminMessage = `Admin sent a message: "${messageText}"`;
+    bot.sendMessage(adminChatId, adminMessage, {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: 'Reply', callback_data: `reply_${chatId}` },
+            { text: 'Block', callback_data: `block_${chatId}` }
           ]
         ]
       }
@@ -72,35 +104,39 @@ bot.on('message', (msg) => {
   }
 });
 
-// Handle the admin's reply to a specific user
+// Handle the admin's actions (reply or block)
 bot.on('callback_query', (callbackQuery) => {
   const chatId = callbackQuery.message.chat.id;
   const messageId = callbackQuery.message.message_id;
 
-  // Extract the user chat ID from the callback data
-  const targetChatId = callbackQuery.data.split('_')[1];
+  const [action, targetChatId] = callbackQuery.data.split('_');
 
-  // Ask the admin to type their reply
-  bot.sendMessage(adminChatId, 'Please type your reply:').then((sentMessage) => {
-    const replyPromptMessageId = sentMessage.message_id; // Get the message ID of the "Please type your reply" message
+  if (action === 'reply') {
+    // Ask the admin to type their reply
+    bot.sendMessage(adminChatId, 'Please type your reply:').then((sentMessage) => {
+      const replyPromptMessageId = sentMessage.message_id; // Get the message ID of the "Please type your reply" message
 
-    // Listen for the admin's reply and send it to the user
-    bot.once('message', (replyMsg) => {
-      const replyText = replyMsg.text;
+      // Listen for the admin's reply and send it to the user
+      bot.once('message', (replyMsg) => {
+        const replyText = replyMsg.text;
 
-      // Send the admin's reply to the user
-      bot.sendMessage(targetChatId, `Reply from admin: ${replyText}`);
+        // Send the admin's reply to the user
+        bot.sendMessage(targetChatId, `Reply from admin: ${replyText}`);
 
-      // Confirm to the admin that the reply has been sent
-      bot.sendMessage(adminChatId, 'Your reply has been sent.');
+        // Confirm to the admin that the reply has been sent
+        bot.sendMessage(adminChatId, 'Your reply has been sent.');
 
-      // Delete the "Please type your reply" message after the admin submits the reply
-      bot.deleteMessage(adminChatId, replyPromptMessageId).catch(err => console.log('Failed to delete message', err));
-
+        // Delete the "Please type your reply" message after the admin submits the reply
+        bot.deleteMessage(adminChatId, replyPromptMessageId).catch(err => console.log('Failed to delete message', err));
+      });
     });
-  });
+  } else if (action === 'block') {
+    // Block the user
+    blockedUsers.add(targetChatId);
+    bot.sendMessage(adminChatId, `User @${targetChatId} has been blocked.`);
+  }
 
-  // Remove the inline keyboard after it's used
+  // Remove the inline keyboard after the action is taken
   bot.editMessageReplyMarkup({}, {
     chat_id: adminChatId,
     message_id: messageId
