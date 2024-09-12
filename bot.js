@@ -27,12 +27,11 @@ app.post(`/bot${token}`, (req, res) => {
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
   const firstName = msg.from.first_name || 'there';
-  if (chatId !== adminChatId) {
-    bot.sendMessage(chatId, `Hello ${firstName} 🖐🏿! Welcome to my Telegram bot. How can I assist you today?`);
-  } else {
-    bot.sendMessage(chatId, `Hello Boss`);
-  }
-});
+if(chatId !== adminChatId) {
+  bot.sendMessage(chatId, `Hello ${firstName} 🖐🏿! Welcome to my Telegram bot. How can I assist you today?`);
+} else {
+  bot.sendMessage(chatId, `Hello Boss`)
+}});
 
 // Handle incoming messages from users
 bot.on('message', (msg) => {
@@ -46,16 +45,18 @@ bot.on('message', (msg) => {
 
   // Send thank you message to the user
   if (chatId !== adminChatId) {
-    bot.sendMessage(chatId, 'Thank you for your message! I will be in touch with you soon.');
-  } else {
-    bot.sendMessage(chatId, `Hello Boss, please select reply first.`);
+    bot.sendMessage(chatId, 'Thank you for your message! I will be in touch with you soon.')
+
+  }
+  else {
+    bot.sendMessage(chatId, `Hello Boss Select reply first`)
   }
 
   // Show the message details to the admin (you) and add a reply button
   if (chatId !== adminChatId) {
     const userFullName = `${msg.from.first_name} ${msg.from.last_name}`;
     const messageDetails = `Message from ${userFullName} (@${username}): "${messageText}"`;
-
+    
     // Send the message details to the admin along with the reply button
     bot.sendMessage(adminChatId, messageDetails, {
       reply_markup: {
@@ -70,6 +71,9 @@ bot.on('message', (msg) => {
       }
     });
   }
+  else{
+    bot.sendMessage(chatId, `Hello Boss Select reply first`)
+  }
 });
 
 // Handle the admin's reply to a specific user
@@ -77,27 +81,27 @@ bot.on('callback_query', (callbackQuery) => {
   const chatId = callbackQuery.message.chat.id;
   const messageId = callbackQuery.message.message_id;
 
+  // Only allow the admin to reply
+  // if (chatId !== adminChatId) {
+  //   bot.sendMessage(chatId, 'You are not authorized to use this function.');
+  //   return;
+  // }
+
   // Extract the user chat ID from the callback data
   const targetChatId = callbackQuery.data.split('_')[1];
 
   // Ask the admin to type their reply
-  bot.sendMessage(adminChatId, 'Please type your reply:').then((sentMessage) => {
-    const replyPromptMessageId = sentMessage.message_id; // Get the message ID of the "Please type your reply" message
+  bot.sendMessage(adminChatId, 'Please type your reply:');
 
-    // Listen for the admin's reply and send it to the user
-    bot.once('message', (replyMsg) => {
-      const replyText = replyMsg.text;
+  // Listen for the admin's reply and send it to the user
+  bot.once('message', (replyMsg) => {
+    const replyText = replyMsg.text;
 
-      // Send the admin's reply to the user
-      bot.sendMessage(targetChatId, `Reply from admin: ${replyText}`);
+    // Send the admin's reply to the user
+    bot.sendMessage(targetChatId, `Reply from admin: ${replyText}`);
 
-      // Confirm to the admin that the reply has been sent
-      bot.sendMessage(adminChatId, 'Your reply has been sent.');
-
-      // Delete the "Please type your reply" message after the admin submits the reply
-      bot.deleteMessage(adminChatId, replyPromptMessageId).catch(err => console.log('Failed to delete message', err));
-
-    });
+    // Confirm to the admin that the reply has been sent
+    bot.sendMessage(adminChatId, 'Your reply has been sent.');
   });
 
   // Remove the inline keyboard after it's used
