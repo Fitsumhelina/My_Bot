@@ -2,21 +2,24 @@ require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
 const express = require('express');
 const bodyParser = require('body-parser');
+const { MongoClient } = require('mongodb');
 
+// Initialize MongoDB client
+const mongoUri = process.env.MONGODB_URI; // MongoDB URI for Atlas
+const client = new MongoClient(mongoUri);
+let db;
+
+// Initialize Express and body-parser
 const app = express();
 app.use(bodyParser.json());
 
-// Replace with your actual bot token and admin chat ID (your Telegram user ID)
+// Replace with your actual bot token and admin chat ID
 const token = process.env.TELEGRAM_BOT_TOKEN;
-const adminChatId = process.env.ADMIN_TELEGRAM_USER_ID; // Your Telegram user ID (get it from @userinfobot)
+const adminChatId = process.env.ADMIN_TELEGRAM_USER_ID;
 
 const bot = new TelegramBot(token);
 const port = process.env.PORT || 3000;
-const webhookUrl = process.env.WEBHOOK_URL; // Replace with your deployed Railway URL
-
-// In-memory storage for blocked users and chat history
-const blockedUsers = new Set();
-const chatHistory = {};
+const webhookUrl = process.env.WEBHOOK_URL;
 
 // Set the webhook to receive updates
 bot.setWebHook(`${webhookUrl}/bot${token}`);
@@ -27,16 +30,33 @@ app.post(`/bot${token}`, (req, res) => {
   res.sendStatus(200);
 });
 
-// Function to store chat history
-const storeChatHistory = (chatId, message) => {
-  if (!chatHistory[chatId]) {
-    chatHistory[chatId] = [];
-  }
-  chatHistory[chatId].push(message);
-  if (chatHistory[chatId].length > 5) {
-    chatHistory[chatId].shift(); // Keep only the recent 5 messages
-  }
-};
+// Connect to MongoDB and initialize database
+client.connect().then(() => {
+  db = client.db('telegramBot');
+  console.log('Connected to MongoDB');
+});
+
+// Utility to get chat history
+async function getChatHistory(chatId, limit = 5) {
+  const messages = await db.collection('messages').find({ chatId }).sort({ timestamp: -1 }).limit(limit).toArray();
+  return messages.reverse(); // Show in chronological order
+}
+
+// Utility to block user
+async function blockUser(userId) {
+  await db.collection('blockedUsers').updateOne({ userId }, { $set: { userId } }, { upsert: true });
+}
+
+// Utility to unblock user
+async function unblockUser(userId) {
+  await db.collection('blockedUsers').deleteOne({ userId });
+}
+
+// Check if user is blocked
+async function isUserBlocked(userId) {
+  const blockedUser = await db.collection('blockedUsers').findOne({ userId });
+  return !!blockedUser;
+}
 
 // Show a welcome message when a user starts the bot
 bot.onText(/\/start/, (msg) => {
@@ -50,35 +70,35 @@ bot.onText(/\/start/, (msg) => {
 });
 
 // Handle incoming messages from users
-bot.on('message', (msg) => {
+bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   const messageText = msg.text;
-  const firstName = msg.from.first_name || 'there';
-  const username = msg.from.username || 'No username';
+  const userId = msg.from.id;
 
   // Ignore the /start command
   if (messageText === '/start') return;
 
-  // Check if the user is blocked
-  if (blockedUsers.has(chatId)) {
-    bot.sendMessage(chatId, 'You are blocked and cannot send messages.');
+  if (await isUserBlocked(userId)) {
+    bot.sendMessage(chatId, "You are blocked from sending messages.");
     return;
   }
 
-  // Store the chat history
-  storeChatHistory(chatId, messageText);
-
-  // Send thank you message to the user
   if (chatId !== adminChatId) {
     bot.sendMessage(chatId, 'Thank you for your message! I will be in touch with you soon.');
 
-    // Prepare message details for the admin
-    const userFullName = `${msg.from.first_name} ${msg.from.last_name}`;
-    const recentChatHistory = chatHistory[chatId].join('\n');
-    const messageDetails = `Full name: ${userFullName}\nUsername: @${username}\nRecent chat history:\n${recentChatHistory}`;
+    // Save user message to MongoDB
+    await db.collection('messages').insertOne({
+      chatId,
+      userId,
+      text: messageText,
+      from: 'user',
+      timestamp: new Date()
+    });
 
-    // Send the message details to the admin along with reply and block buttons
-    bot.sendMessage(adminChatId, messageDetails, {
+    const chatHistory = await getChatHistory(chatId);
+    const messageDetails = chatHistory.map(msg => `${msg.from}: ${msg.text}`).join('\n');
+    
+    bot.sendMessage(adminChatId, `Message from ${msg.from.first_name} (@${msg.from.username}): "${messageText}"\n\nRecent chat history:\n${messageDetails}`, {
       reply_markup: {
         inline_keyboard: [
           [
@@ -89,39 +109,37 @@ bot.on('message', (msg) => {
       }
     });
   } else {
-    // Show admin's message as a user message (with Reply and Block options)
-    const adminMessage = `Admin sent a message: "${messageText}"`;
-    bot.sendMessage(adminChatId, adminMessage, {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: 'Reply', callback_data: `reply_${chatId}` },
-            { text: 'Block', callback_data: `block_${chatId}` }
-          ]
-        ]
-      }
-    });
+    bot.sendMessage(chatId, `Hello Boss, please select a reply option.`);
   }
 });
 
-// Handle the admin's actions (reply or block)
-bot.on('callback_query', (callbackQuery) => {
+// Handle the admin's reply to a specific user
+bot.on('callback_query', async (callbackQuery) => {
   const chatId = callbackQuery.message.chat.id;
   const messageId = callbackQuery.message.message_id;
+  const targetChatId = callbackQuery.data.split('_')[1];
 
-  const [action, targetChatId] = callbackQuery.data.split('_');
-
-  if (action === 'reply') {
+  if (callbackQuery.data.startsWith('reply_')) {
     // Ask the admin to type their reply
     bot.sendMessage(adminChatId, 'Please type your reply:').then((sentMessage) => {
       const replyPromptMessageId = sentMessage.message_id; // Get the message ID of the "Please type your reply" message
 
       // Listen for the admin's reply and send it to the user
-      bot.once('message', (replyMsg) => {
+      bot.once('message', async (replyMsg) => {
         const replyText = replyMsg.text;
+        const userId = replyMsg.from.id;
 
         // Send the admin's reply to the user
         bot.sendMessage(targetChatId, `Reply from admin: ${replyText}`);
+
+        // Save admin reply to MongoDB
+        await db.collection('messages').insertOne({
+          chatId: targetChatId,
+          userId,
+          text: replyText,
+          from: 'admin',
+          timestamp: new Date()
+        });
 
         // Confirm to the admin that the reply has been sent
         bot.sendMessage(adminChatId, 'Your reply has been sent.');
@@ -130,17 +148,42 @@ bot.on('callback_query', (callbackQuery) => {
         bot.deleteMessage(adminChatId, replyPromptMessageId).catch(err => console.log('Failed to delete message', err));
       });
     });
-  } else if (action === 'block') {
-    // Block the user
-    blockedUsers.add(targetChatId);
-    bot.sendMessage(adminChatId, `User @${targetChatId} has been blocked.`);
-  }
 
-  // Remove the inline keyboard after the action is taken
-  bot.editMessageReplyMarkup({}, {
-    chat_id: adminChatId,
-    message_id: messageId
-  });
+    // Remove the inline keyboard after it's used
+    bot.editMessageReplyMarkup({}, {
+      chat_id: adminChatId,
+      message_id: messageId
+    });
+  } else if (callbackQuery.data.startsWith('block_')) {
+    const blockedChatId = callbackQuery.data.split('_')[1];
+    const blockedUser = await bot.getChatMember(blockedChatId, adminChatId);
+    const blockedUserId = blockedUser.user.id;
+
+    // Block user
+    await blockUser(blockedUserId);
+    bot.sendMessage(adminChatId, `User ${blockedChatId} has been blocked.`);
+    
+    // Optionally, notify the user if needed
+    bot.sendMessage(blockedChatId, 'You have been blocked by the admin.');
+    
+    // Remove the inline keyboard
+    bot.editMessageReplyMarkup({}, {
+      chat_id: adminChatId,
+      message_id: messageId
+    });
+  } else if (callbackQuery.data.startsWith('unblock_')) {
+    const unblockedUserId = callbackQuery.data.split('_')[1];
+
+    // Unblock user
+    await unblockUser(unblockedUserId);
+    bot.sendMessage(adminChatId, `User ${unblockedUserId} has been unblocked.`);
+    
+    // Remove the inline keyboard
+    bot.editMessageReplyMarkup({}, {
+      chat_id: adminChatId,
+      message_id: messageId
+    });
+  }
 });
 
 // Start the server
