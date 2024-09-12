@@ -1,18 +1,5 @@
-require('dotenv').config();
-const TelegramBot = require('node-telegram-bot-api');
+$token = "7041187201:AAFi2fG36ToOc0AUIw1JGVX73xaf2k0yAOM"
+$webhookUrl = "https://mybot-production-594f.up.railway.app/bot$token" 
+$setWebhookUrl = "https://api.telegram.org/bot$token/setWebhook"
 
-// Replace YOUR_API_TOKEN with the actual token from BotFather or use .env file for security.
-const token = process.env.TELEGRAM_BOT_TOKEN || 'YOUR_API_TOKEN';
-const bot = new TelegramBot(token, { polling: true });
-
-// Listen for any kind of message
-bot.on('message', (msg) => {
-  const chatId = msg.chat.id;
-  const messageText = msg.text;
-
-  // Log the received message
-  console.log(`Received message from ${chatId}: ${messageText}`);
-
-  // Reply to the user
-  bot.sendMessage(chatId, 'Thank you for your message!');
-});
+Invoke-WebRequest -Uri $setWebhookUrl -Method Post -Body @{ url = $webhookUrl }
