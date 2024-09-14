@@ -1,9 +1,8 @@
-// controllers/botController.js
 const { saveChatMessage, getRecentMessages } = require('../services/messageService');
 const TelegramBot = require('node-telegram-bot-api');
 require('dotenv').config();
 
-const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN);
+const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
 
 // Handle incoming messages
 const handleUserMessage = async (msg) => {
@@ -49,7 +48,6 @@ const handleUserMessage = async (msg) => {
 
 // Handle admin replies
 const handleAdminReply = async (callbackQuery) => {
-  const chatId = callbackQuery.message.chat.id;
   const messageId = callbackQuery.message.message_id;
   const targetChatId = callbackQuery.data.split('_')[1];
 
@@ -60,7 +58,7 @@ const handleAdminReply = async (callbackQuery) => {
       bot.once('message', async (replyMsg) => {
         const replyText = replyMsg.text;
 
-        if (replyMsg.chat.id === process.env.ADMIN_TELEGRAM_USER_ID) {
+        if (replyMsg.chat.id.toString() === process.env.ADMIN_TELEGRAM_USER_ID) {
           bot.sendMessage(targetChatId, `Reply from admin: ${replyText}`);
           await saveChatMessage(targetChatId, 'admin', replyText);
           bot.sendMessage(process.env.ADMIN_TELEGRAM_USER_ID, 'Your reply has been sent.');
