@@ -1,18 +1,14 @@
-// server.js
-const express = require('express');
+// index.js
+require('dotenv').config();
 const connectDB = require('./config/db');
-const userRoutes = require('./routes/userRoutes');
-const adminRoutes = require('./routes/adminRoutes');
-const bot = require('./services/telegramService');
+const bot = require('./utils/bot');
 
-const app = express();
+// Connect to MongoDB
 connectDB();
 
-app.use(express.json());
+// Start the bot
+bot.launch();
 
-// Routes
-app.use('/api/users', userRoutes);
-app.use('/api/admin', adminRoutes);
-
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// Handle graceful shutdown
+process.once('SIGINT', () => bot.stop('SIGINT'));
+process.once('SIGTERM', () => bot.stop('SIGTERM'));
