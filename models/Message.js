@@ -1,12 +1,11 @@
-// models/Message.js
 const mongoose = require('mongoose');
 
-const MessageSchema = new mongoose.Schema({
-  sender: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+const messageSchema = new mongoose.Schema({
+  sender: { type: String, enum: ['user', 'admin'], required: true },
   text: String,
-  media: String,  // Handle media as URLs or file IDs
-  sentBy: { type: String, enum: ['user', 'admin'], required: true },
+  multimedia: String, 
+  chatId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   timestamp: { type: Date, default: Date.now }
 });
 
-module.exports = mongoose.model('Message', MessageSchema);
+module.exports = mongoose.model('Message', messageSchema);

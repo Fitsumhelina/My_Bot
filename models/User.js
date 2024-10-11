@@ -1,12 +1,13 @@
-// models/User.js
 const mongoose = require('mongoose');
 
-const UserSchema = new mongoose.Schema({
-  telegramId: { type: String, required: true, unique: true },
+const userSchema = new mongoose.Schema({
+  chatId: String,
+  name: String,
+  phoneNumber: String,
   username: String,
-  firstName: String,
-  lastName: String,
-  blocked: { type: Boolean, default: false }
+  blocked: { type: Boolean, default: false },
+  tags: [String], 
+  messages: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Message' }]
 });
 
-module.exports = mongoose.model('User', UserSchema);
+module.exports = mongoose.model('User', userSchema);
