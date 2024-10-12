@@ -20,6 +20,7 @@ const User = mongoose.model('User', userSchema);
 
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 
+// Define admin's chat ID to separate admin actions
 const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID;
 
 // Handle /start command but don’t show it as a normal message
@@ -28,8 +29,10 @@ bot.onText(/\/start/, (msg) => {
   const firstName = msg.from.first_name || '';
   const username = msg.from.username || '';
 
-  // Send the welcome message only to the user, not to the admin
-  bot.sendMessage(chatId, `Welcome ${firstName}! You can use the 'Ask a Question' option to submit your question.`);
+  // Only send welcome messages to normal users, not the admin
+  if (chatId != ADMIN_CHAT_ID) {
+    bot.sendMessage(chatId, `Welcome ${firstName}! You can use the 'Ask a Question' option to submit your question.`);
+  }
 });
 
 // Handle user messages
@@ -39,24 +42,26 @@ bot.on('message', async (msg) => {
   const username = msg.from.username || '';
   const userMessage = msg.text || msg.caption;
 
-  // Ignore /start messages
-  if (userMessage === '/start') return;
+  // Ignore /start messages and admin's own messages
+  if (userMessage === '/start' || chatId == ADMIN_CHAT_ID) return;
 
-  // Check if user is blocked
+  // Check if the user is blocked
   const user = await User.findOne({ userId: chatId });
   if (user && user.isBlocked) {
     bot.sendMessage(chatId, "You are blocked from sending messages.");
     return;
   }
 
-  // If it's the "Ask a Question" command, guide the user to submit their question
+  // Handle regular user interactions
   if (userMessage === 'Ask a Question') {
     bot.sendMessage(chatId, `Please submit your question, ${firstName}:`);
   } else {
-    // Send confirmation to the user only after they send their actual question or message
-    bot.sendMessage(chatId, `Thank you for your question, ${firstName}! I will be in touch with you soon.`);
+    // Send confirmation only to users, not the admin
+    if (chatId != ADMIN_CHAT_ID) {
+      bot.sendMessage(chatId, `Thank you for your question, ${firstName}! I will be in touch with you soon.`);
+    }
 
-    // Send the message to the admin with the user's name and username (avoid repeating the message)
+    // Send the message to the admin with the user's name and username (ignore admin's own messages)
     const messageType = msg.photo ? 'photo' : msg.document ? 'document' : 'text';
     const displayName = `${firstName}${username ? ` (@${username})` : ''}`;
 
@@ -98,9 +103,11 @@ bot.on('callback_query', async (query) => {
     bot.sendMessage(chatId, 'Please type your reply:');
     
     bot.once('message', (msg) => {
-      const reply = msg.text;
-      bot.sendMessage(userId, `From Admin: ${reply}`);
-      bot.sendMessage(chatId, 'Reply sent successfully!');
+      if (msg.chat.id == ADMIN_CHAT_ID) {  // Ensure only admin replies are considered
+        const reply = msg.text;
+        bot.sendMessage(userId, `From Admin: ${reply}`);
+        bot.sendMessage(chatId, 'Reply sent successfully!');
+      }
     });
   } else if (data.startsWith('block_')) {
     const userId = data.split('_')[1];
