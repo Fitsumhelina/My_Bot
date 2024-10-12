@@ -22,16 +22,25 @@ const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 
 const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID;
 
-// Handle /start command
+// Handle /start command but don’t show it as a normal message
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
-  bot.sendMessage(chatId, "Welcome! You can use the 'Ask a Question' option to submit your question.");
+  const firstName = msg.from.first_name || '';
+  const username = msg.from.username || '';
+
+  // Send the welcome message only to the user, not to the admin
+  bot.sendMessage(chatId, `Welcome ${firstName}! You can use the 'Ask a Question' option to submit your question.`);
 });
 
 // Handle user messages
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
+  const firstName = msg.from.first_name || '';
+  const username = msg.from.username || '';
   const userMessage = msg.text || msg.caption;
+
+  // Ignore /start messages
+  if (userMessage === '/start') return;
 
   // Check if user is blocked
   const user = await User.findOne({ userId: chatId });
@@ -40,27 +49,29 @@ bot.on('message', async (msg) => {
     return;
   }
 
-  // Handle 'Ask a Question' scenario
+  // If it's the "Ask a Question" command, guide the user to submit their question
   if (userMessage === 'Ask a Question') {
-    bot.sendMessage(chatId, "Please submit your question:");
+    bot.sendMessage(chatId, `Please submit your question, ${firstName}:`);
   } else {
-    // Confirm receipt to the user
-    bot.sendMessage(chatId, "Thank you for your question! I will be in touch with you soon.");
+    // Send confirmation to the user only after they send their actual question or message
+    bot.sendMessage(chatId, `Thank you for your question, ${firstName}! I will be in touch with you soon.`);
 
-    // Forward the message to the admin
+    // Send the message to the admin with the user's name and username (avoid repeating the message)
     const messageType = msg.photo ? 'photo' : msg.document ? 'document' : 'text';
+    const displayName = `${firstName}${username ? ` (@${username})` : ''}`;
+
     if (messageType === 'photo') {
       bot.sendPhoto(ADMIN_CHAT_ID, msg.photo[msg.photo.length - 1].file_id, {
-        caption: `Message from user ${chatId}: ${msg.caption || ''}`,
+        caption: `Message from ${displayName}: ${msg.caption || ''}`,
         reply_markup: adminReplyMarkup(chatId),
       });
     } else if (messageType === 'document') {
       bot.sendDocument(ADMIN_CHAT_ID, msg.document.file_id, {
-        caption: `Message from user ${chatId}: ${msg.caption || ''}`,
+        caption: `Message from ${displayName}: ${msg.caption || ''}`,
         reply_markup: adminReplyMarkup(chatId),
       });
     } else {
-      bot.sendMessage(ADMIN_CHAT_ID, `Message from user ${chatId}: ${userMessage}`, {
+      bot.sendMessage(ADMIN_CHAT_ID, `Message from ${displayName}: ${userMessage}`, {
         reply_markup: adminReplyMarkup(chatId),
       });
     }
